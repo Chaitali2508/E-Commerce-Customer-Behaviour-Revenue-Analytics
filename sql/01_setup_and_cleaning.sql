@@ -7,7 +7,7 @@
 -- (JOINs, CTEs, window functions).
 --
 -- Source tables:
---   customers, orders, order_items, payments, products
+--   customers, orders, orderitems, payments, products
 -- ============================================================
 
 
@@ -17,11 +17,12 @@
 CREATE DATABASE IF NOT EXISTS ecommerce_project;
 USE ecommerce_project;
 
--- All 5 tables (customers, orders, order_items, payments,
+-- All 5 tables (customers, orders, orderitems, payments,
 -- products) were loaded via MySQL Workbench's
 -- "Table Data Import Wizard" directly from the project's CSV
--- exports (df_Customers.csv, df_Orders.csv, df_OrderItems.csv,
--- df_Payments.csv, df_Products.csv).
+-- exports (practice_customers.csv, practice_orders.csv,
+-- practice_orderItems.csv, practice_payments.csv,
+-- practice_products.csv).
 --
 -- Note: master/merged Excel sheet was NOT used for import —
 -- the 5 separate tables were kept normalized/relational on
@@ -82,11 +83,18 @@ SELECT 'customers' AS table_name, COUNT(*) AS row_count FROM customers
 UNION ALL
 SELECT 'orders', COUNT(*) FROM orders
 UNION ALL
-SELECT 'order_items', COUNT(*) FROM order_items
+SELECT 'orderitems', COUNT(*) FROM orderitems
 UNION ALL
 SELECT 'payments', COUNT(*) FROM payments
 UNION ALL
 SELECT 'products', COUNT(*) FROM products;
+
+-- Row counts confirmed:
+--   customers: 4025
+--   orders: 10691
+--   orderitems: 14622
+--   payments: 10691
+--   products: 885
 
 -- Confirm no unexpected nulls remain in the cleaned column:
 SELECT
