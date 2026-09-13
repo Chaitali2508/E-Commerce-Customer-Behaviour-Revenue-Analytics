@@ -79,3 +79,32 @@ LIMIT 10;
 SELECT MAX(order_purchase_timestamp) AS latest_order
 FROM orders;
 -- Result: 2024-12-30 23:00:00 -> snapshot date = 2024-12-31 23:00:00
+
+
+-- ------------------------------------------------------------
+-- 5. RFM base query: Recency, Frequency, Monetary per customer
+-- ------------------------------------------------------------
+-- Combines everything above into one query. Groups by
+-- customer_id ONLY (not order_id) so that COUNT/SUM/MAX/MIN
+-- aggregate across a customer's full order history, giving one
+-- row per customer rather than one row per order.
+WITH calculation AS (
+  SELECT 
+    c.customer_id AS customer,
+    COUNT(o.order_id) AS order_count,
+    SUM(oi.shipping_charges + oi.price) AS monetary,
+    MAX(o.order_purchase_timestamp) AS lastdate,
+    MIN(o.order_purchase_timestamp) AS firstdate
+  FROM customers c
+  JOIN orders o ON c.customer_id = o.customer_id
+  JOIN orderitems oi ON o.order_id = oi.order_id
+  GROUP BY c.customer_id
+)
+SELECT 
+  customer,
+  order_count AS frequency,
+  monetary,
+  DATEDIFF('2024-12-31 23:00:00', lastdate) AS recency
+FROM calculation
+ORDER BY recency ASC
+LIMIT 10;
