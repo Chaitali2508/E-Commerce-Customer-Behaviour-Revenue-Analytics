@@ -108,3 +108,38 @@ SELECT
 FROM calculation
 ORDER BY recency ASC
 LIMIT 10;
+
+
+-- ------------------------------------------------------------
+-- 6. Multi-CTE example: customer revenue vs. overall average
+-- ------------------------------------------------------------
+-- Demonstrates one CTE built directly from another (chaining):
+-- overall_avg is calculated FROM customer_totals, not from a
+-- raw table. CROSS JOIN is used deliberately here since
+-- overall_avg has exactly one row (a single constant), so it
+-- just attaches that same average onto every customer row for
+-- comparison. (Note: a CROSS JOIN between two independently
+-- grouped CTEs with no shared key, e.g. customer totals vs.
+-- category totals, was tried and rejected — it produced a
+-- meaningless full pairing of every customer with every
+-- category, since customers aren't tied to a single category.)
+WITH customer_totals AS (
+  SELECT c.customer_id, SUM(oi.price + oi.shipping_charges) AS total_revenue
+  FROM customers c
+  JOIN orders o ON c.customer_id = o.customer_id
+  JOIN orderitems oi ON o.order_id = oi.order_id
+  GROUP BY c.customer_id
+),
+overall_avg AS (
+  SELECT AVG(total_revenue) AS avg_revenue
+  FROM customer_totals
+)
+SELECT 
+  ct.customer_id,
+  ct.total_revenue,
+  oa.avg_revenue
+FROM customer_totals ct
+CROSS JOIN overall_avg oa
+ORDER BY ct.total_revenue DESC
+LIMIT 10;
+ 
