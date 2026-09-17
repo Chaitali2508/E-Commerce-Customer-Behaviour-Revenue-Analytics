@@ -52,3 +52,48 @@ SELECT
 FROM customer_totals
 ORDER BY total_revenue DESC
 LIMIT 15;
+
+-- ------------------------------------------------------------
+-- 3. NTILE(5): scoring Recency, Frequency, Monetary (RFM)
+-- ------------------------------------------------------------
+-- NTILE(5) splits customers into 5 roughly equal-sized buckets
+-- based on the ORDER BY inside OVER(). Frequency and Monetary
+-- sort ASC (lowest values first) so top spenders/most-frequent
+-- customers land in bucket 5. Recency is DELIBERATELY sorted
+-- DESC (biggest day-gap first) because a SMALLER day-gap
+-- (recently active) should score HIGHER (5) -- the opposite
+-- direction from the other two metrics.
+WITH calculation AS (
+  SELECT 
+    c.customer_id AS customer,
+    COUNT(o.order_id) AS order_count,
+    SUM(oi.shipping_charges + oi.price) AS monetary,
+    MAX(o.order_purchase_timestamp) AS lastdate
+  FROM customers c
+  JOIN orders o ON c.customer_id = o.customer_id
+  JOIN orderitems oi ON o.order_id = oi.order_id
+  GROUP BY c.customer_id
+),
+rfm_scores AS (
+  SELECT 
+    customer,
+    DATEDIFF('2024-12-31 23:00:00', lastdate) AS recency,
+    order_count AS frequency,
+    monetary,
+    NTILE(5) OVER (ORDER BY DATEDIFF('2024-12-31 23:00:00', lastdate) DESC) AS recency_score,
+    NTILE(5) OVER (ORDER BY order_count ASC) AS frequency_score,
+    NTILE(5) OVER (ORDER BY monetary ASC) AS monetary_score
+  FROM calculation
+)
+SELECT * FROM rfm_scores
+ORDER BY monetary DESC
+LIMIT 15;
+-- Verified: e.g. CUST102938 (240-day gap, least recent here)
+-- correctly scored recency_score=3, lower than customers like
+-- CUST101119 and CUST103229 (only 3-day gap) who scored 5 --
+-- confirming the flipped sort direction works as intended.
+ 
+-- Next step: combine recency_score + frequency_score +
+-- monetary_score into an actual segment label (e.g. Champion,
+-- Loyal, At Risk) -- matching the Python RFM segmentation.
+ 
