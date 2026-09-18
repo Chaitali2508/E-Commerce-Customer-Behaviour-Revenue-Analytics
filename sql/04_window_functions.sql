@@ -97,3 +97,52 @@ LIMIT 15;
 -- monetary_score into an actual segment label (e.g. Champion,
 -- Loyal, At Risk) -- matching the Python RFM segmentation.
  
+ 
+ -- ------------------------------------------------------------
+-- 4. RFM segment labeling (Champion, Loyal, At Risk, etc.)
+-- ------------------------------------------------------------
+-- Combines the 3 scores into an rfm_total and uses CASE WHEN
+-- to assign a segment label based on standard RFM logic.
+-- CASE checks conditions top-to-bottom and assigns the first
+-- match: high on all 3 = Champion; still frequent but not
+-- recent = At Risk (used to be active, may be slipping away);
+-- low on both recency and frequency = Lost.
+WITH calculation AS (
+  SELECT 
+    c.customer_id AS customer,
+    COUNT(o.order_id) AS order_count,
+    SUM(oi.shipping_charges + oi.price) AS monetary,
+    MAX(o.order_purchase_timestamp) AS lastdate
+  FROM customers c
+  JOIN orders o ON c.customer_id = o.customer_id
+  JOIN orderitems oi ON o.order_id = oi.order_id
+  GROUP BY c.customer_id
+),
+rfm_scores AS (
+  SELECT 
+    customer,
+    DATEDIFF('2024-12-31 23:00:00', lastdate) AS recency,
+    order_count AS frequency,
+    monetary,
+    NTILE(5) OVER (ORDER BY DATEDIFF('2024-12-31 23:00:00', lastdate) DESC) AS recency_score,
+    NTILE(5) OVER (ORDER BY order_count ASC) AS frequency_score,
+    NTILE(5) OVER (ORDER BY monetary ASC) AS monetary_score
+  FROM calculation
+)
+SELECT 
+  customer,
+  recency_score, frequency_score, monetary_score,
+  (recency_score + frequency_score + monetary_score) AS rfm_total,
+  CASE 
+    WHEN recency_score >= 4 AND frequency_score >= 4 AND monetary_score >= 4 THEN 'Champion'
+    WHEN recency_score >= 3 AND frequency_score >= 3 THEN 'Loyal'
+    WHEN recency_score <= 2 AND frequency_score >= 3 THEN 'At Risk'
+    WHEN recency_score <= 2 AND frequency_score <= 2 THEN 'Lost'
+    ELSE 'Regular'
+  END AS rfm_segment
+FROM rfm_scores
+ORDER BY rfm_total DESC
+LIMIT 20;
+-- Verified: top rows all score 5/5/5 (rfm_total=15) and
+-- correctly label as 'Champion'.
+ 
