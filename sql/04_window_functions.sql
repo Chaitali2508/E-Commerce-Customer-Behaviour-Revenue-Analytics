@@ -166,3 +166,28 @@ SELECT
 FROM orders
 ORDER BY customer_id, order_purchase_timestamp
 LIMIT 20;
+
+-- ------------------------------------------------------------
+-- 6. Average days between orders -- per customer
+-- ------------------------------------------------------------
+-- WHERE ... IS NOT NULL excludes each customer's first order
+-- (no gap to measure), so we only average real gaps.
+WITH order_gaps AS (
+  SELECT 
+    customer_id,
+    order_id,
+    order_purchase_timestamp,
+    DATEDIFF(
+      order_purchase_timestamp, 
+      LAG(order_purchase_timestamp) OVER (PARTITION BY customer_id ORDER BY order_purchase_timestamp)
+    ) AS days_since_previous_order
+  FROM orders
+)
+SELECT 
+  customer_id,
+  ROUND(AVG(days_since_previous_order), 1) AS avg_days_between_orders
+FROM order_gaps
+WHERE days_since_previous_order IS NOT NULL
+GROUP BY customer_id
+ORDER BY avg_days_between_orders ASC
+LIMIT 15;
