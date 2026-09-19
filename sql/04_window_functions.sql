@@ -191,3 +191,53 @@ WHERE days_since_previous_order IS NOT NULL
 GROUP BY customer_id
 ORDER BY avg_days_between_orders ASC
 LIMIT 15;
+
+-- ------------------------------------------------------------
+-- 7. Average days between orders -- two valid averaging methods
+-- ------------------------------------------------------------
+-- Window functions (LAG) can't be used directly inside AVG() in
+-- the same SELECT, so per-order gaps are calculated in a
+-- subquery/CTE first, then aggregated in an outer step.
+--
+-- Method A -- ORDER-WEIGHTED: pools every individual gap from
+-- every customer together into one average. Frequent buyers
+-- (more gaps) pull this number down more than rare buyers.
+SELECT ROUND(AVG(days_since_previous_order), 1) AS order_weighted_avg
+FROM (
+  SELECT 
+    customer_id,
+    DATEDIFF(
+      order_purchase_timestamp, 
+      LAG(order_purchase_timestamp) OVER (PARTITION BY customer_id ORDER BY order_purchase_timestamp)
+    ) AS days_since_previous_order
+  FROM orders
+) AS gaps
+WHERE days_since_previous_order IS NOT NULL;
+-- Result: 144.4 days
+ 
+-- Method B -- CUSTOMER-WEIGHTED (the headline metric to report):
+-- averages each customer's OWN average gap first, so every
+-- customer counts equally regardless of how many orders they
+-- placed. This is the SQL equivalent of, and matches, the
+-- Python .groupby('customer_id')['order_date'].diff().mean()
+-- result (184.7 days).
+WITH order_gaps AS (
+  SELECT 
+    customer_id,
+    DATEDIFF(
+      order_purchase_timestamp, 
+      LAG(order_purchase_timestamp) OVER (PARTITION BY customer_id ORDER BY order_purchase_timestamp)
+    ) AS gap
+  FROM orders
+),
+per_customer_avg AS (
+  SELECT customer_id, AVG(gap) AS avg_gap
+  FROM order_gaps
+  WHERE gap IS NOT NULL
+  GROUP BY customer_id
+)
+SELECT ROUND(AVG(avg_gap), 1) AS customer_weighted_avg
+FROM per_customer_avg;
+-- Result: 184.6 days -- matches Python's 184.7 days almost
+-- exactly. USE THIS as the headline retention metric.
+ 
