@@ -146,3 +146,23 @@ LIMIT 20;
 -- Verified: top rows all score 5/5/5 (rfm_total=15) and
 -- correctly label as 'Champion'.
  
+-- - ------------------------------------------------------------
+-- 5. LAG(): retention analysis (days between consecutive orders)
+-- ------------------------------------------------------------
+-- LAG() pulls a value from the PREVIOUS row within the same
+-- partition. Here, each customer's previous order date, so we
+-- can measure the gap to their current order. Each customer's
+-- first order correctly returns NULL (nothing before it to
+-- compare against) -- confirmed on CUST100000, CUST100001, etc.
+SELECT 
+  customer_id,
+  order_id,
+  order_purchase_timestamp,
+  LAG(order_purchase_timestamp) OVER (PARTITION BY customer_id ORDER BY order_purchase_timestamp) AS previous_order_date,
+  DATEDIFF(
+    order_purchase_timestamp, 
+    LAG(order_purchase_timestamp) OVER (PARTITION BY customer_id ORDER BY order_purchase_timestamp)
+  ) AS days_since_previous_order
+FROM orders
+ORDER BY customer_id, order_purchase_timestamp
+LIMIT 20;
