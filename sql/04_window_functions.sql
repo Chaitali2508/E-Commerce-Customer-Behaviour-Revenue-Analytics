@@ -241,3 +241,30 @@ FROM per_customer_avg;
 -- Result: 184.6 days -- matches Python's 184.7 days almost
 -- exactly. USE THIS as the headline retention metric.
  
+ --  ------------------------------------------------------------
+-- 8. Running total: cumulative revenue over time (bonus)
+-- ------------------------------------------------------------
+-- SUM(daily_total) OVER (ORDER BY order_date) adds up the
+-- current row PLUS every row before it in date order -- unlike
+-- a normal GROUP BY SUM which collapses everything into one
+-- number. No PARTITION BY, since this is one continuous running
+-- total across the whole business, not reset per customer or
+-- category. Useful for a "cumulative revenue" line chart.
+WITH daily_revenue AS (
+  SELECT 
+    DATE(o.order_purchase_timestamp) AS order_date,
+    SUM(oi.price + oi.shipping_charges) AS daily_total
+  FROM orders o
+  JOIN orderitems oi ON o.order_id = oi.order_id
+  GROUP BY DATE(o.order_purchase_timestamp)
+)
+SELECT 
+  order_date,
+  ROUND(daily_total, 2) AS daily_total,
+  ROUND(SUM(daily_total) OVER (ORDER BY order_date), 2) AS running_total_revenue
+FROM daily_revenue
+ORDER BY order_date
+LIMIT 20;
+-- Verified: running_total_revenue climbs steadily every day
+-- (2,490.57 -> 4,200.06 -> 7,299.48 -> ...), never decreasing.
+ 
